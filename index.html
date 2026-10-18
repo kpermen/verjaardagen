@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Verjaardagen</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Verjaardagen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111111">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --text: #ffffff;
+    --muted: rgba(255, 255, 255, 0.78);
+    --digit: #ffd36b;
+    --glow: rgba(255, 190, 70, 0.55);
+    --panel: rgba(10, 10, 12, 0.55);
+    --panel-line: rgba(255, 255, 255, 0.14);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: #111;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    overflow: hidden;
+  }
+
+  /* Achtergrondfoto met donkere waas zodat de tekst leesbaar blijft.
+     Grootte en positie worden per foto berekend zodat het gezicht zichtbaar is. */
+  .achtergrond {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 30% 20%, #6b3b5c, #1d1b2e 70%);
+  }
+  .foto {
+    position: absolute; inset: 0;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center 30%;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+  }
+  .foto.zichtbaar { opacity: 1; }
+  .achtergrond::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.25) 35%, rgba(0,0,0,0.6) 100%);
+  }
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  main {
+    position: relative;
+    min-height: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center;
+    padding: calc(env(safe-area-inset-top) + 24px) calc(env(safe-area-inset-right) + 16px)
+             calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 16px);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  }
+
+  .naam {
+    font-size: clamp(40px, 11vw, 96px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin: 0;
+  }
+  .geboren {
+    font-size: clamp(16px, 4.2vw, 24px);
+    color: var(--muted);
+    margin: 8px 0 32px;
+  }
+
+  .klok {
+    display: flex; align-items: flex-start; gap: clamp(6px, 2vw, 16px);
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 20px;
+    padding: clamp(14px, 3.5vw, 24px) clamp(14px, 4vw, 32px);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    text-shadow: none;
+  }
+  .vak { display: flex; flex-direction: column; align-items: center; }
+  .cijfers {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    font-size: clamp(44px, 14vw, 112px);
+    line-height: 1;
+    color: var(--digit);
+    text-shadow: 0 0 10px var(--glow), 0 0 28px var(--glow);
+    position: relative;
+  }
+  /* Vage "88" achter de cijfers, zoals bij een LCD-display. */
+  .cijfers::before {
+    content: attr(data-leeg);
+    position: absolute; inset: 0;
+    color: rgba(255, 211, 107, 0.08);
+    text-shadow: none;
+  }
+  .eenheid {
+    margin-top: 8px;
+    font-size: clamp(11px, 2.8vw, 14px);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .dubbelpunt {
+    font-family: "SF Mono", ui-monospace, Menlo, monospace;
+    font-size: clamp(36px, 11vw, 88px);
+    line-height: 1.1;
+    color: var(--digit);
+    text-shadow: 0 0 10px var(--glow);
+    transition: opacity 0.2s;
+  }
+  .dubbelpunt.uit { opacity: 0.25; }
+
+  .leeftijd {
+    margin-top: 32px;
+    font-size: clamp(22px, 6vw, 40px);
+    font-weight: 600;
+  }
+
+  /* Stippen rechts: welke persoon in de rij getoond wordt. */
+  .stippen {
+    position: fixed; top: 50%; transform: translateY(-50%);
+    right: calc(env(safe-area-inset-right) + 12px);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .stippen span {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    transition: background 0.3s, transform 0.3s;
+  }
+  .stippen span.actief { background: #fff; transform: scale(1.3); }
+
+  /* ---------- Verjaardag ---------- */
+  .feest-blok { display: none; }
+  .feest .klok, .feest .leeftijd, body.jarig .stippen { display: none; }
+  .feest .feest-blok { display: flex; flex-direction: column; align-items: center; animation: binnen 1.2s cubic-bezier(.2, 1.6, .4, 1) both; }
+  .feest .geboren { margin-bottom: 16px; }
+
+  .proficiat {
+    font-size: clamp(20px, 5.5vw, 36px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    animation: zweef 3s ease-in-out infinite;
+  }
+  .nieuwe-leeftijd {
+    font-size: clamp(140px, 42vw, 300px);
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    background: linear-gradient(110deg, #b8860b 0%, #ffd700 20%, #fff8dc 30%, #ffd700 40%, #daa520 60%, #fff3b0 70%, #b8860b 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 0 18px rgba(255, 200, 60, 0.75)) drop-shadow(0 6px 20px rgba(0, 0, 0, 0.5));
+    animation: glans 3s linear infinite, pols 1.6s ease-in-out infinite;
+  }
+  .jaar-woord {
+    font-size: clamp(22px, 6vw, 40px);
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  @keyframes glans { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+  @keyframes pols { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+  @keyframes binnen { from { opacity: 0; transform: scale(0.2) rotate(-12deg); } to { opacity: 1; transform: none; } }
+  @keyframes zweef { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+  .speelknop {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 28px);
+    transform: translateX(-50%);
+    font: inherit; font-size: 18px; font-weight: 600;
+    color: #2a1a00;
+    background: linear-gradient(180deg, #ffe58a, #f5b82e);
+    border: 0; border-radius: 999px;
+    padding: 14px 26px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 24px rgba(255, 200, 60, 0.5);
+    cursor: pointer;
+    display: none;
+  }
+  .speelknop.toon { display: block; }
+</style>
+</head>
+<body>
+<div class="achtergrond"><div class="foto" id="fotoA"></div><div class="foto" id="fotoB"></div></div>
+<canvas id="confetti"></canvas>
+<main id="scherm">
+  <h1 class="naam" id="naam"></h1>
+  <div class="geboren" id="geboren"></div>
+  <div class="klok" aria-label="Aftelklok">
+    <div class="vak"><div class="cijfers" id="dagen" data-leeg="888">000</div><div class="eenheid">dagen</div></div>
+    <div class="dubbelpunt" id="dp1">:</div>
+    <div class="vak"><div class="cijfers" id="uren" data-leeg="88">00</div><div class="eenheid">uren</div></div>
+    <div class="dubbelpunt" id="dp2">:</div>
+    <div class="vak"><div class="cijfers" id="minuten" data-leeg="88">00</div><div class="eenheid">minuten</div></div>
+  </div>
+  <div class="leeftijd" id="leeftijd"></div>
+  <div class="feest-blok">
+    <div class="proficiat">🎉 Gelukkige verjaardag! 🎉</div>
+    <div class="nieuwe-leeftijd" id="nieuweLeeftijd"></div>
+    <div class="jaar-woord">jaar</div>
+  </div>
+</main>
+<div class="stippen" id="stippen" aria-hidden="true"></div>
+<button class="speelknop" id="speelknop">🎂 Tik voor Happy Birthday</button>
+<audio id="lied" src="happy-birthday.m4a" preload="auto"></audio>
+
+<script>
+// Gegevens uit Geboortedata.numbers en Foto's/. Bijwerken met: python3 bijwerken.py
+// BEGIN-GEGEVENS
+const MENSEN = [
+  { naam: "Tristan", geboren: "1998-09-20", fotos: [{"src": "fotos/Tristan-1.jpg", "gezicht": [0.364, 0.358, 0.257, 0.386]}, {"src": "fotos/Tristan-2.jpg", "gezicht": [0.058, 0.316, 0.74, 0.214]}, {"src": "fotos/Tristan-3.jpg", "gezicht": [0.223, 0.308, 0.258, 0.194]}, {"src": "fotos/Tristan-4.jpg", "gezicht": [0.419, 0.306, 0.145, 0.109]}, {"src": "fotos/Tristan-5.jpg", "gezicht": [0.364, 0.164, 0.345, 0.109]}, {"src": "fotos/Tristan-6.jpg", "gezicht": [0.302, 0.023, 0.458, 0.336]}, {"src": "fotos/Tristan-7.jpg", "gezicht": [0.172, 0.29, 0.54, 0.283]}, {"src": "fotos/Tristan-8.jpg", "gezicht": [0.457, 0.343, 0.207, 0.155]}, {"src": "fotos/Tristan-9.jpg", "gezicht": [-0.022, 0.188, 0.92, 0.522]}, {"src": "fotos/Tristan-10.jpg", "gezicht": [0.285, 0.3, 0.335, 0.251]}, {"src": "fotos/Tristan-11.jpg", "gezicht": [0.257, 0.271, 0.404, 0.123]}, {"src": "fotos/Tristan-12.jpg", "gezicht": [0.176, 0.312, 0.641, 0.468]}] },
+  { naam: "Katharina", geboren: "2000-06-28", fotos: [{"src": "fotos/Katharina-1.jpg", "gezicht": [0.223, 0.475, 0.122, 0.182]}, {"src": "fotos/Katharina-2.jpg", "gezicht": [0.302, 0.264, 0.247, 0.37]}, {"src": "fotos/Katharina-3.jpg", "gezicht": [0.394, 0.509, 0.053, 0.035]}, {"src": "fotos/Katharina-4.jpg", "gezicht": [0.386, 0.331, 0.092, 0.127]}, {"src": "fotos/Katharina-5.jpg", "gezicht": [0.462, 0.452, 0.033, 0.05]}, {"src": "fotos/Katharina-6.jpg", "gezicht": [0.593, 0.541, 0.032, 0.048]}, {"src": "fotos/Katharina-7.jpg", "gezicht": [0.277, 0.487, 0.064, 0.097]}, {"src": "fotos/Katharina-8.jpg", "gezicht": [0.48, 0.23, 0.175, 0.131]}, {"src": "fotos/Katharina-9.jpg", "gezicht": [0.326, 0.304, 0.096, 0.072]}, {"src": "fotos/Katharina-10.jpg", "gezicht": [0.32, 0.508, 0.232, 0.174]}, {"src": "fotos/Katharina-11.jpg", "gezicht": [0.714, 0.277, 0.267, 0.201]}, {"src": "fotos/Katharina-12.jpg", "gezicht": [0.198, 0.233, 0.501, 0.298]}] },
+  { naam: "Luca", geboren: "2006-02-17", fotos: [{"src": "fotos/Luca-1.jpg", "gezicht": [0.569, 0.409, 0.164, 0.247]}, {"src": "fotos/Luca-2.jpg", "gezicht": [0.302, 0.179, 0.441, 0.203]}, {"src": "fotos/Luca-3.jpg", "gezicht": [0.464, 0.111, 0.258, 0.194]}, {"src": "fotos/Luca-4.jpg", "gezicht": [0.457, 0.228, 0.368, 0.276]}, {"src": "fotos/Luca-5.jpg", "gezicht": [0.294, 0.264, 0.443, 0.178]}, {"src": "fotos/Luca-6.jpg", "gezicht": [0.396, 0.212, 0.256, 0.192]}, {"src": "fotos/Luca-7.jpg", "gezicht": [0.262, 0.099, 0.375, 0.232]}, {"src": "fotos/Luca-8.jpg", "gezicht": [0.291, 0.186, 0.063, 0.047]}, {"src": "fotos/Luca-9.jpg", "gezicht": [0.366, 0.176, 0.219, 0.165]}, {"src": "fotos/Luca-10.jpg", "gezicht": [0.309, 0.17, 0.416, 0.312]}, {"src": "fotos/Luca-11.jpg", "gezicht": [0.167, 0.238, 0.441, 0.331]}, {"src": "fotos/Luca-12.jpg", "gezicht": [0.006, 0.325, 0.587, 0.44]}, {"src": "fotos/Luca-13.jpg", "gezicht": [0.209, 0.266, 0.25, 0.141]}, {"src": "fotos/Luca-14.jpg", "gezicht": [0.478, 0.223, 0.286, 0.191]}] },
+  { naam: "Zeno", geboren: "2011-11-09", fotos: [{"src": "fotos/Zeno-1.jpg", "gezicht": [0.322, 0.216, 0.384, 0.288]}, {"src": "fotos/Zeno-2.jpg", "gezicht": [0.226, 0.267, 0.327, 0.245]}, {"src": "fotos/Zeno-3.jpg", "gezicht": [0.423, 0.1, 0.1, 0.075]}, {"src": "fotos/Zeno-4.jpg", "gezicht": [0.451, 0.169, 0.286, 0.214]}, {"src": "fotos/Zeno-5.jpg", "gezicht": [0.19, 0.28, 0.581, 0.428]}, {"src": "fotos/Zeno-6.jpg", "gezicht": [0.581, 0.365, 0.183, 0.137]}, {"src": "fotos/Zeno-7.jpg", "gezicht": [0.27, 0.259, 0.302, 0.227]}] },
+  { naam: "Rena", geboren: "2014-09-16", fotos: [{"src": "fotos/Rena-1.jpg", "gezicht": [0.254, 0.213, 0.238, 0.178]}, {"src": "fotos/Rena-2.jpg", "gezicht": [0.172, 0.339, 0.353, 0.156]}, {"src": "fotos/Rena-3.jpg", "gezicht": [0.272, 0.21, 0.235, 0.176]}, {"src": "fotos/Rena-4.jpg", "gezicht": [0.26, 0.611, 0.371, 0.279]}, {"src": "fotos/Rena-5.jpg", "gezicht": [0.41, 0.153, 0.254, 0.19]}, {"src": "fotos/Rena-6.jpg", "gezicht": [0.311, 0.242, 0.184, 0.138]}, {"src": "fotos/Rena-7.jpg", "gezicht": [0.418, 0.33, 0.11, 0.083]}, {"src": "fotos/Rena-8.jpg", "gezicht": [0.331, 0.266, 0.236, 0.177]}, {"src": "fotos/Rena-9.jpg", "gezicht": [0.121, 0.419, 0.193, 0.097]}] },
+  { naam: "Papa", geboren: "1969-02-16", fotos: [{"src": "fotos/Papa-1.jpg", "gezicht": [0.428, 0.118, 0.218, 0.164]}, {"src": "fotos/Papa-2.jpg", "gezicht": [0.366, 0.089, 0.254, 0.19]}, {"src": "fotos/Papa-3.jpg", "gezicht": [0.281, 0.438, 0.396, 0.297]}, {"src": "fotos/Papa-4.jpg", "gezicht": [0.19, 0.28, 0.581, 0.428]}, {"src": "fotos/Papa-5.jpg", "gezicht": [0.263, 0.324, 0.44, 0.264]}] }
+];
+// EINDE-GEGEVENS
+
+// De achtergrond wisselt elke 15 seconden naar een volgende foto van de persoon.
+const WISSEL_MS = 15000;
+
+// Om te testen: index.html?datum=2026-11-09 doet alsof het die dag is (om 9 uur).
+const TESTDATUM = new URLSearchParams(location.search).get("datum");
+const VERSCHUIVING = TESTDATUM ? new Date(TESTDATUM + "T09:00:00") - new Date() : 0;
+const nuTijd = () => new Date(Date.now() + VERSCHUIVING);
+
+function isSchrikkeljaar(j) { return (j % 4 === 0 && j % 100 !== 0) || j % 400 === 0; }
+
+// Verjaardag in een bepaald jaar; 29 februari valt in gewone jaren op 28 februari.
+function verjaardagIn(jaar, maand, dag) {
+  if (maand === 1 && dag === 29 && !isSchrikkeljaar(jaar)) dag = 28;
+  return new Date(jaar, maand, dag);
+}
+
+// Alle verjaardagen in volgorde, wie op dezelfde dag jarig is samen in één groep.
+// Wie vandaag jarig is, staat de hele dag vooraan.
+function groepen(nu) {
+  const vandaag = new Date(nu.getFullYear(), nu.getMonth(), nu.getDate());
+  const lijst = MENSEN.map(p => {
+    const [j, m, d] = p.geboren.split("-").map(Number);
+    let datum = verjaardagIn(vandaag.getFullYear(), m - 1, d);
+    if (datum < vandaag) datum = verjaardagIn(vandaag.getFullYear() + 1, m - 1, d);
+    const vandaagJarig = datum.getTime() === vandaag.getTime();
+    const leeftijd = datum.getFullYear() - j - (vandaagJarig ? 0 : 1);
+    return { ...p, geboortedatum: new Date(j, m - 1, d), datum, vandaagJarig, leeftijd };
+  }).sort((a, b) => a.datum - b.datum || a.naam.localeCompare(b.naam, "nl"));
+  const uit = [];
+  for (const p of lijst) {
+    const laatste = uit[uit.length - 1];
+    if (laatste && laatste[0].datum.getTime() === p.datum.getTime()) laatste.push(p);
+    else uit.push([p]);
+  }
+  return uit;
+}
+
+const $ = id => document.getElementById(id);
+let getoond = "";
+let keuze = 0;  // 0 = eerstvolgende verjaardag, 1 = die erna, ...
+let iemandJarig = false;
+
+function toonPersoon(groep) {
+  const sleutel = groep.map(p => p.naam).join("|") + groep[0].datum.toDateString() + groep[0].vandaagJarig;
+  if (sleutel === getoond) return;
+  getoond = sleutel;
+
+  const p = groep[0];
+  $("naam").textContent = groep.map(x => x.naam).join(" & ");
+  $("geboren").textContent = groep.length === 1
+    ? "geboren " + p.geboortedatum.toLocaleDateString("nl-BE", { day: "numeric", month: "long", year: "numeric" })
+    : "jarig op " + p.datum.toLocaleDateString("nl-BE", { day: "numeric", month: "long" });
+  $("leeftijd").textContent = groep.map(x => `${x.leeftijd} jaar`).join(" & ");
+  $("nieuweLeeftijd").textContent = groep.map(x => x.leeftijd).join(" & ");
+  $("scherm").classList.toggle("feest", p.vandaagJarig);
+
+  startDiavoorstelling(groep.flatMap(x => x.fotos || []));
+}
+
+// ---------- Foto's ----------
+// Twee lagen die om beurten invloeien. Zonder foto's blijft het kleurverloop staan.
+let fotolijst = [], fotoIndex = 0, bovenste = null, wisselTimer = null, fotoReeks = 0;
+
+function startDiavoorstelling(lijst) {
+  clearInterval(wisselTimer);
+  fotoReeks++;
+  fotolijst = lijst;
+  fotoIndex = Math.floor(Math.random() * Math.max(1, lijst.length));
+  if (!lijst.length) {
+    $("fotoA").classList.remove("zichtbaar");
+    $("fotoB").classList.remove("zichtbaar");
+    bovenste = null;
+    return;
+  }
+  toonFoto();
+  if (lijst.length > 1) wisselTimer = setInterval(toonFoto, WISSEL_MS);
+}
+
+function toonFoto() {
+  const foto = fotolijst[fotoIndex];
+  fotoIndex = (fotoIndex + 1) % fotolijst.length;
+  const reeks = fotoReeks;
+  const img = new Image();
+  img.onload = () => {
+    if (reeks !== fotoReeks) return;  // intussen naar een andere persoon gebladerd
+    const nieuw = bovenste === $("fotoA") ? $("fotoB") : $("fotoA");
+    nieuw.style.backgroundImage = `url("${img.src}")`;
+    nieuw.dataset.b = img.naturalWidth;
+    nieuw.dataset.h = img.naturalHeight;
+    nieuw.dataset.gezicht = foto.gezicht ? foto.gezicht.join(",") : "";
+    plaatsFoto(nieuw);
+    nieuw.classList.add("zichtbaar");
+    if (bovenste) bovenste.classList.remove("zichtbaar");
+    bovenste = nieuw;
+  };
+  img.src = encodeURI(foto.src);
+}
+
+// Schaal en verschuif de foto zodat het gezicht in de vrije ruimte boven de naam valt.
+// Lukt dat niet volledig, dan zo hoog en zo centraal mogelijk.
+function plaatsFoto(laag) {
+  const ib = +laag.dataset.b, ih = +laag.dataset.h;
+  if (!ib || !ih) return;
+  const B = innerWidth, H = innerHeight;
+  const basis = Math.max(B / ib, H / ih);
+  if (!laag.dataset.gezicht) {
+    laag.style.backgroundSize = "cover";
+    laag.style.backgroundPosition = "center 30%";
+    return;
+  }
+  let [gx, gy, gb, gh] = laag.dataset.gezicht.split(",").map(Number);
+  // Vision geeft het gezicht zelf; neem wat haar en kin erbij.
+  gy = Math.max(0, gy - gh * 0.35); gh = Math.min(1 - gy, gh * 1.55);
+  gx = Math.max(0, gx - gb * 0.1); gb = Math.min(1 - gx, gb * 1.2);
+
+  const naamBoven = $("naam").getBoundingClientRect().top;
+  const vrij = Math.max(naamBoven - 12, H * 0.22);  // hoogte van de vrije zone bovenaan
+
+  let beste = null;
+  for (let s = basis; s <= basis * 1.8; s *= 1.05) {
+    const db = ib * s, dh = ih * s;
+    const midX = (gx + gb / 2) * db, midY = (gy + gh / 2) * dh;
+    const x = Math.min(0, Math.max(B - db, B / 2 - midX));
+    // Past het gezicht in de vrije zone, dan daar in het midden; anders net onder de bovenrand.
+    const doelY = gh * dh <= vrij ? vrij / 2 - midY : H * 0.03 - gy * dh;
+    const y = Math.min(0, Math.max(H - dh, doelY));
+    if (gh * dh > vrij && s === basis) { beste = { db, dh, x, y, overlap: 0 }; break; }
+    const onder = (gy + gh) * dh + y;  // onderkant van het gezicht op het scherm
+    const kandidaat = { db, dh, x, y, overlap: Math.max(0, onder - vrij) };
+    if (!beste || kandidaat.overlap < beste.overlap - 1) beste = kandidaat;
+    if (kandidaat.overlap === 0) break;
+  }
+  laag.style.backgroundSize = `${beste.db}px ${beste.dh}px`;
+  laag.style.backgroundPosition = `${beste.x}px ${beste.y}px`;
+}
+addEventListener("resize", () => { plaatsFoto($("fotoA")); plaatsFoto($("fotoB")); });
+
+// ---------- Klok ----------
+function tik() {
+  const nu = nuTijd();
+  const alle = groepen(nu);
+  const wasJarig = iemandJarig;
+  iemandJarig = alle[0][0].vandaagJarig;
+  document.body.classList.toggle("jarig", iemandJarig);
+  if (iemandJarig) keuze = 0;  // op een verjaardag blijft de jarige staan
+  keuze = ((keuze % alle.length) + alle.length) % alle.length;
+  const groep = alle[keuze];
+  toonPersoon(groep);
+  toonStippen(alle.length);
+  if (iemandJarig && !wasJarig) startFeest();
+  if (!iemandJarig && wasJarig) stopFeest();
+
+  const rest = Math.max(0, groep[0].datum - nu);
+  const totaalMinuten = Math.floor(rest / 60000);
+  $("dagen").textContent = String(Math.floor(totaalMinuten / 1440)).padStart(3, "0");
+  $("uren").textContent = String(Math.floor((totaalMinuten % 1440) / 60)).padStart(2, "0");
+  $("minuten").textContent = String(totaalMinuten % 60).padStart(2, "0");
+
+  const knipper = nu.getSeconds() % 2 === 1;
+  $("dp1").classList.toggle("uit", knipper);
+  $("dp2").classList.toggle("uit", knipper);
+}
+
+function toonStippen(aantal) {
+  const s = $("stippen");
+  if (s.children.length !== aantal) s.innerHTML = "<span></span>".repeat(aantal);
+  [...s.children].forEach((el, i) => el.classList.toggle("actief", i === keuze));
+}
+
+// ---------- Feest ----------
+// De Mac-app speelt het lied zelf af en opent de pagina met #gespeeld.
+function startFeest() {
+  startConfetti();
+  if (location.hash === "#gespeeld") return;
+  const lied = $("lied");
+  lied.currentTime = 0;
+  const p = lied.play();
+  // Browsers laten geluid vaak pas toe na een tik; dan verschijnt de knop.
+  if (p) p.catch(() => $("speelknop").classList.add("toon"));
+}
+function stopFeest() {
+  stopConfetti();
+  $("speelknop").classList.remove("toon");
+}
+$("speelknop").addEventListener("click", () => {
+  $("speelknop").classList.remove("toon");
+  const lied = $("lied");
+  lied.currentTime = 0;
+  lied.play();
+});
+
+let confettiLoopt = false;
+function startConfetti() {
+  const doek = $("confetti"), ctx = doek.getContext("2d");
+  const kleuren = ["#ffd700", "#ff6b9a", "#4fc3f7", "#81c784", "#ffffff", "#ba68c8", "#ff8a65"];
+  let stukjes = [];
+  const maak = (bovenaan) => ({
+    x: Math.random() * innerWidth,
+    y: bovenaan ? -20 - Math.random() * innerHeight : Math.random() * innerHeight,
+    b: 6 + Math.random() * 6, h: 10 + Math.random() * 8,
+    vy: 1.2 + Math.random() * 2.2, vx: -0.8 + Math.random() * 1.6,
+    hoek: Math.random() * Math.PI, draai: -0.1 + Math.random() * 0.2,
+    kleur: kleuren[Math.floor(Math.random() * kleuren.length)],
+  });
+  const maat = () => {
+    doek.width = innerWidth * devicePixelRatio;
+    doek.height = innerHeight * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  };
+  maat();
+  addEventListener("resize", maat);
+  const aantal = Math.min(160, Math.round(innerWidth * innerHeight / 6000));
+  for (let i = 0; i < aantal; i++) stukjes.push(maak(true));
+  confettiLoopt = true;
+  (function teken() {
+    if (!confettiLoopt) { ctx.clearRect(0, 0, innerWidth, innerHeight); return; }
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const s of stukjes) {
+      s.y += s.vy; s.x += s.vx + Math.sin(s.y / 40) * 0.6; s.hoek += s.draai;
+      if (s.y > innerHeight + 20) Object.assign(s, maak(false), { y: -20 });
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.hoek);
+      ctx.scale(1, Math.cos(s.hoek * 2));
+      ctx.fillStyle = s.kleur;
+      ctx.fillRect(-s.b / 2, -s.h / 2, s.b, s.h);
+      ctx.restore();
+    }
+    requestAnimationFrame(teken);
+  })();
+}
+function stopConfetti() { confettiLoopt = false; }
+
+// ---------- Bladeren ----------
+// Naar onder scrollen of omhoog vegen = volgende persoon; omgekeerd = vorige.
+// Na de laatste komt weer de eerste. Op een verjaardag kan je niet bladeren.
+let bezig = false;
+function blader(richting) {
+  if (bezig || iemandJarig) return;
+  bezig = true;
+  setTimeout(() => { bezig = false; }, 600);
+  keuze += richting;
+  tik();
+  $("scherm").animate(
+    [{ opacity: 0, transform: `translateY(${richting * 40}px)` }, { opacity: 1, transform: "none" }],
+    { duration: 450, easing: "ease-out" });
+}
+
+// Een trackpad blijft na een veeg nog even scroll-events sturen; één veeg = één stap.
+let wielGeblokkeerd = false, wielTimer = null;
+window.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (wielGeblokkeerd || Math.abs(e.deltaY) < 15) {
+    if (wielGeblokkeerd) {
+      clearTimeout(wielTimer);
+      wielTimer = setTimeout(() => { wielGeblokkeerd = false; }, 250);
+    }
+    return;
+  }
+  wielGeblokkeerd = true;
+  wielTimer = setTimeout(() => { wielGeblokkeerd = false; }, 250);
+  blader(e.deltaY > 0 ? 1 : -1);
+}, { passive: false });
+
+let veegStart = null;
+window.addEventListener("touchstart", e => { veegStart = e.touches[0].clientY; }, { passive: true });
+window.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+window.addEventListener("touchend", e => {
+  if (veegStart === null) return;
+  const dy = veegStart - e.changedTouches[0].clientY;
+  veegStart = null;
+  if (Math.abs(dy) > 50) blader(dy > 0 ? 1 : -1);
+});
+
+window.addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); blader(1); }
+  if (e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); blader(-1); }
+});
+
+tik();
+setInterval(tik, 1000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) tik(); });
+</script>
+</body>
+</html>
